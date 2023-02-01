@@ -65,7 +65,6 @@ namespace KitchenDrinksMod
             // Perform actions when game data is built
             Events.BuildGameDataEvent += delegate (object s, BuildGameDataEventArgs args)
             {
-                
             };
         }
         #region Logging

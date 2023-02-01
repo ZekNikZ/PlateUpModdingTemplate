@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -8,7 +9,7 @@ public class AssetBundler
     /// <summary>
     /// The types of assets to search for in checks.
     /// </summary>
-    private static readonly string ASSET_SEARCH_QUERY = "t:prefab,t:textAsset";
+    private static readonly string ASSET_SEARCH_QUERY = "t:prefab,t:textAsset,t:audioclip";
 
     /// <summary>
     /// Temporary location for building AssetBundles.
@@ -33,16 +34,21 @@ public class AssetBundler
     /// <summary>
     /// The build target of the asset bundle. Should either be StandaloneWindows or StandaloneOSX, depending on your platform.
     /// </summary>
-    private BuildTarget TARGET = BuildTarget.StandaloneWindows;
+    private BuildTarget Target = BuildTarget.StandaloneWindows;
 
-    [MenuItem("PlateUp!/Build Asset Bundle")]
+    /// <summary>
+    /// Number of warnings encountered.
+    /// </summary>
+    private int NumWarnings;
+
+    [MenuItem("PlateUp!/Build Asset Bundle _F6")]
     public static void BuildAssetBundle()
     {
         Debug.LogFormat("Creating \"{0}\" AssetBundle...", BUNDLE_FILENAME);
 
         AssetBundler bundler = new AssetBundler();
 
-        if (Application.platform == RuntimePlatform.OSXEditor) bundler.TARGET = BuildTarget.StandaloneOSX;
+        if (Application.platform == RuntimePlatform.OSXEditor) bundler.Target = BuildTarget.StandaloneOSX;
 
         bool success = false;
         try
@@ -50,6 +56,8 @@ public class AssetBundler
             // Check for assets
             bundler.WarnIfAssetsAreNotTagged();
             bundler.WarnIfZeroAssetsAreTagged();
+            bundler.WarnIfMeshAssetsAreTagged();
+            bundler.WarnIfMaterialsAreTaggedOrIncluded();
 
             // Delete the contents of OUTPUT_FOLDER
             bundler.CleanBuildFolder();
@@ -66,7 +74,7 @@ public class AssetBundler
 
         if (success)
         {
-            Debug.LogFormat("{0} Build complete! Output: {1}", DateTime.Now.ToLocalTime(), OUTPUT_FOLDER + "/" + BUNDLE_FILENAME);
+            Debug.LogFormat("[{0}] Build complete with {1} warnings! Output: {2}", DateTime.Now.ToLocalTime(), bundler.NumWarnings, OUTPUT_FOLDER + "/" + BUNDLE_FILENAME);
         }
     }
 
@@ -105,7 +113,7 @@ public class AssetBundler
         BuildPipeline.BuildAssetBundles(
             TEMP_BUILD_FOLDER,
             BuildAssetBundleOptions.UncompressedAssetBundle | BuildAssetBundleOptions.CollectDependencies,
-            TARGET);
+            Target);
 #pragma warning restore 618
 
         // We are only interested in the BUNDLE_FILENAME bundle (and not any extra AssetBundle or the manifest files
@@ -150,7 +158,8 @@ public class AssetBundler
             var importer = AssetImporter.GetAtPath(path);
             if (!importer.assetBundleName.Equals(BUNDLE_FILENAME))
             {
-                Debug.LogWarningFormat("Asset \"{0}\" is not tagged for {1} and will not be included in the AssetBundle!", path, BUNDLE_FILENAME);
+                Debug.LogWarningFormat("Asset \"{0}\" is not tagged with \"{1}\" and will not be included in the AssetBundle!", path, BUNDLE_FILENAME);
+                ++NumWarnings;
             }
         }
     }
@@ -165,5 +174,105 @@ public class AssetBundler
         {
             throw new Exception(string.Format("No assets have been tagged for inclusion in the {0} AssetBundle.", BUNDLE_FILENAME));
         }
+    }
+
+    /// <summary>
+    /// Warn if there are any mesh assets tagged. If so, the user probably meant to tag a prefab instead.
+    /// </summary>
+    protected void WarnIfMeshAssetsAreTagged()
+    {
+        string[] assetGUIDs = AssetDatabase.FindAssets($"t:mesh,b:{BUNDLE_FILENAME}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            if (!IsIncludedAssetPath(path))
+            {
+                continue;
+            }
+
+            Debug.LogWarningFormat("Mesh asset \"{0}\" is tagged for inclusion in the {1} AssetBundle! This is likely a mistake. You should include a prefab instead.", path, BUNDLE_FILENAME);
+            ++NumWarnings;
+        }
+    }
+
+    /// <summary>
+    /// Warn if there are any material assets tagged. If so, the user probably meant to tag a prefab instead.
+    /// </summary>
+    protected void WarnIfMaterialsAreTaggedOrIncluded()
+    {
+        // Check for directly tagged materials
+        string[] assetGUIDs = AssetDatabase.FindAssets($"t:material,b:{BUNDLE_FILENAME}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            if (!IsIncludedAssetPath(path))
+            {
+                continue;
+            }
+
+            Debug.LogWarningFormat("Material asset \"{0}\" is tagged for inclusion in the {1} AssetBundle! This is likely a mistake. You should use generate materials using the vanilla shaders instead.", path, BUNDLE_FILENAME);
+            ++NumWarnings;
+        }
+
+        // Check for materials assigned to prefabs
+        assetGUIDs = AssetDatabase.FindAssets($"t:prefab,b:{BUNDLE_FILENAME}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            if (!IsIncludedAssetPath(path))
+            {
+                continue;
+            }
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            MeshRenderer[] renderers = prefab.GetComponentsInChildren<MeshRenderer>();
+            foreach (MeshRenderer renderer in renderers)
+            {
+                if (renderer.sharedMaterials.Any(m => m != null))
+                {
+                    Debug.LogWarningFormat("Material found attached to bundle prefab in \"{0}\" at \"<root>/{1}\"! This is likely a mistake. To avoid log spam and texturing issues, you should remove these materials or set them to \"None\".", path, GetGameObjectPath(renderer.transform).Split(new char[] { '/' }, 3)[2]);
+                    ++NumWarnings;
+                }
+            }
+        }
+    }
+
+    public static string GetGameObjectPath(Transform current)
+    {
+        if (current.parent == null)
+            return "/" + current.name;
+        return GetGameObjectPath(current.parent) + "/" + current.name;
+    }
+
+    [MenuItem("PlateUp!/Preparation/Strip Materials From Prefabs")]
+    public static void RemoveAllPrefabMaterials()
+    {
+        if (!EditorUtility.DisplayDialog("Confirm", "Stripping materials from prefabs is an irreversible process. Perform at your own risk.", "Proceed", "Cancel"))
+        {
+            return;
+        }
+
+        string[] assetGUIDs = AssetDatabase.FindAssets($"t:prefab,b:{BUNDLE_FILENAME}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            if (!IsIncludedAssetPath(path))
+            {
+                continue;
+            }
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            MeshRenderer[] renderers = prefab.GetComponentsInChildren<MeshRenderer>();
+            foreach (MeshRenderer renderer in renderers)
+            {
+                if (renderer.sharedMaterials.Length > 0)
+                {
+                    renderer.sharedMaterials = new Material[0];
+                    Debug.LogFormat("Striped materials from \"{0}\" at \"<root>/{1}\".", path, GetGameObjectPath(renderer.transform).Split(new char[] { '/' }, 3)[2]);
+                }
+            }
+        }
+
+        Debug.LogFormat("[{0}] Done stripping materials.", DateTime.Now.ToLocalTime());
     }
 }

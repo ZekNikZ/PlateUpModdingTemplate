@@ -9,10 +9,6 @@
 	</PropertyGroup>
 	
 	<PropertyGroup>
-		<!-- FOLDER PATHS -->
-		
-		<!-- Absolute Path to PlateUp.exe e.g: C:\\Program Files (x86)\\Steam\\SteamLibrary\\steamapps\\common\\PlateUp\\PlateUp -->
-		<PlateUpGameFolder>C:\Program Files (x86)\Steam\steamapps\common\PlateUp\PlateUp</PlateUpGameFolder>
 		<!-- Where you want the content/ folder to go (the parent of this folder is your "workshop folder" when uploading). By default, this is the root folder of the project. -->
 		<WorkshopDir>$(ProjectDir)content</WorkshopDir>
 		
