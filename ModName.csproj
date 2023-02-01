@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net472</TargetFramework>
+		<Configurations>Release;Debug</Configurations>
+		<AssemblyName>$(MSBuildProjectName)-Workshop</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<NoWarn>CS0114</NoWarn>
+	</PropertyGroup>
+	
+	<PropertyGroup>
+		<!-- FOLDER PATHS -->
+		
+		<!-- Absolute Path to PlateUp.exe e.g: C:\\Program Files (x86)\\Steam\\SteamLibrary\\steamapps\\common\\PlateUp\\PlateUp -->
+		<PlateUpGameFolder>C:\Program Files (x86)\Steam\steamapps\common\PlateUp\PlateUp</PlateUpGameFolder>
+		<!-- Where you want the content/ folder to go (the parent of this folder is your "workshop folder" when uploading). By default, this is the root folder of the project. -->
+		<WorkshopDir>$(ProjectDir)content</WorkshopDir>
+		
+		<!-- ASSET BUNDLES -->
+
+		<!-- Set the next line to 'true' if you have an asset bundle -->
+		<EnableAssetBundleDeploy>false</EnableAssetBundleDeploy>
+		<!-- Change this if your mod.assets is located elsewhere than the default location -->
+		<AssetBundlePath>$(ProjectDir)content\mod.assets</AssetBundlePath>
+	</PropertyGroup>
+	
+	<!-- Exclude build artifacts and Unity project -->
+	<ItemGroup>
+	  <Compile Remove="content\**" />
+	  <Compile Remove="UnityProject\**" />
+	  <EmbeddedResource Remove="content\**" />
+	  <EmbeddedResource Remove="UnityProject\**" />
+	  <None Remove="content\**" />
+	  <None Remove="UnityProject\**" />
+	</ItemGroup>
+	
+	<!-- Exclude workshop metadata -->
+	<ItemGroup>
+	  <None Remove="plateup_mod_metadata.json" />
+	  <None Remove="*.png" />
+	</ItemGroup>
+  
+	<ItemGroup>
+		<PackageReference Include="MessagePack.Annotations" Version="2.4.59" />
+		<PackageReference Include="Yariazen.PlateUp.ModBuildUtilities" Version="1.6.16" />
+	
+		<!-- For if you build KitchenLib locally -->
+		<Reference Include="KitchenLib">
+			<HintPath>$(PlateUpGameFolder)\Mods\KitchenLib\content\KitchenLib-Workshop.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<Target Name="BundleWorkshop" AfterTargets="Build" Condition="$(EnableModDeployLocal) == 'true'">
+		<Copy SourceFiles="$(TargetDir)$(MSBuildProjectName)-Workshop.dll" DestinationFolder="$(WorkshopDir)" />
+	</Target>
+</Project>
