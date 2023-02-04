@@ -42,7 +42,7 @@
 	
 		<!-- For if you build KitchenLib locally -->
 		<Reference Include="KitchenLib">
-			<HintPath>$(PlateUpGameFolder)\Mods\KitchenLib\content\KitchenLib-Workshop.dll</HintPath>
+			<HintPath>$(GamePath)\Mods\KitchenLib\content\KitchenLib-Workshop.dll</HintPath>
 		</Reference>
 	</ItemGroup>
 
