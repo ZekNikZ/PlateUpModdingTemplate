@@ -41,6 +41,11 @@ public class AssetBundler
     /// </summary>
     private int NumWarnings;
 
+    /// <summary>
+    /// Number of warnings encountered.
+    /// </summary>
+    private string GeneratedAssetBundleTag;
+
     [MenuItem("PlateUp!/Build Asset Bundle _F6")]
     public static void BuildAssetBundle()
     {
@@ -49,6 +54,9 @@ public class AssetBundler
         AssetBundler bundler = new AssetBundler();
 
         if (Application.platform == RuntimePlatform.OSXEditor) bundler.Target = BuildTarget.StandaloneOSX;
+
+        // Randomly generate the resulting name of the asset bundle
+        bundler.GenerateRandomAssetBundleTag();
 
         bool success = false;
         try
@@ -62,6 +70,9 @@ public class AssetBundler
             // Delete the contents of OUTPUT_FOLDER
             bundler.CleanBuildFolder();
 
+            // Temporarily move the tagged assets to the temporary tag
+            bundler.MoveAssetsToTemporaryAssetBundle();
+
             // Lastly, create the asset bundle itself and copy it to the output folder
             bundler.CreateAssetBundle();
 
@@ -72,9 +83,54 @@ public class AssetBundler
             Debug.LogErrorFormat("Failed to build AssetBundle: {0}\n{1}", e.Message, e.StackTrace);
         }
 
+        // Return assets to the original asset bundle tag
+        bundler.RestoreAssetBundleTags();
+        AssetDatabase.RemoveUnusedAssetBundleNames();
+
         if (success)
         {
-            Debug.LogFormat("[{0}] Build complete with {1} warnings! Output: {2}", DateTime.Now.ToLocalTime(), bundler.NumWarnings, OUTPUT_FOLDER + "/" + BUNDLE_FILENAME);
+            Debug.LogFormat("[{0}] Build complete with {1} warnings! Output: {2} (temporary ID: {3})", DateTime.Now.ToLocalTime(), bundler.NumWarnings, OUTPUT_FOLDER + "/" + BUNDLE_FILENAME, bundler.GeneratedAssetBundleTag);
+        }
+    }
+
+    /// <summary>
+    /// Generate the random asset bundle tag to use when building the asset bundle.
+    /// </summary>
+    private void GenerateRandomAssetBundleTag()
+    {
+        System.Random rand = new System.Random();
+        GeneratedAssetBundleTag = $"mod-{rand.Next(0, int.MaxValue)}.assets";
+    }
+
+    /// <summary>
+    /// Move assets tagged with BUNDLE_FILENAME to the temporary asset bundle
+    /// </summary>
+    private void MoveAssetsToTemporaryAssetBundle()
+    {
+        SubstituteAssetBundleTags(BUNDLE_FILENAME, GeneratedAssetBundleTag);
+    }
+
+    /// <summary>
+    /// Move assets tagged with the temporary asset bundle back to BUNDLE_FILENAME
+    /// </summary>
+    private void RestoreAssetBundleTags()
+    {
+        SubstituteAssetBundleTags(GeneratedAssetBundleTag, BUNDLE_FILENAME);
+    }
+
+    /// <summary>
+    /// Find all assets tagged with a certain asset bundle tag and replace them with another tag
+    /// </summary>
+    /// <param name="from">The asset bundle tag to search for</param>
+    /// <param name="to">The new asset bundle tag</param>
+    private void SubstituteAssetBundleTags(string from, string to)
+    {
+        string[] assetGUIDs = AssetDatabase.FindAssets($"b:{from}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            var importer = AssetImporter.GetAtPath(path);
+            importer.assetBundleName = to;
         }
     }
 
@@ -118,7 +174,7 @@ public class AssetBundler
 
         // We are only interested in the BUNDLE_FILENAME bundle (and not any extra AssetBundle or the manifest files
         // that Unity makes), so just copy that to the final output folder
-        string srcPath = Path.Combine(TEMP_BUILD_FOLDER, BUNDLE_FILENAME);
+        string srcPath = Path.Combine(TEMP_BUILD_FOLDER, GeneratedAssetBundleTag);
         string destPath = Path.Combine(OUTPUT_FOLDER, BUNDLE_FILENAME);
         File.Copy(srcPath, destPath, true);
     }
