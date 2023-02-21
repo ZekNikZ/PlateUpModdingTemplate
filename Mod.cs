@@ -5,7 +5,7 @@ using System.Reflection;
 using UnityEngine;
 
 // Namespace should have "Kitchen" in the beginning
-namespace KitchenDrinksMod
+namespace KitchenMyMod
 {
     public class Mod : BaseMod, IModSystem
     {
@@ -16,7 +16,7 @@ namespace KitchenDrinksMod
         public const string MOD_NAME = "My Mod";
         public const string MOD_VERSION = "0.1.0";
         public const string MOD_AUTHOR = "My Name";
-        public const string MOD_GAMEVERSION = ">=1.1.3";
+        public const string MOD_GAMEVERSION = ">=1.1.4";
         // Game version this mod is designed for in semver
         // e.g. ">=1.1.3" current and all future
         // e.g. ">=1.1.3 <=1.2.3" for all from/until
