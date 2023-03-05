@@ -323,12 +323,56 @@ public class AssetBundler
             {
                 if (renderer.sharedMaterials.Length > 0)
                 {
-                    renderer.sharedMaterials = new Material[0];
-                    Debug.LogFormat("Striped materials from \"{0}\" at \"<root>/{1}\".", path, GetGameObjectPath(renderer.transform).Split(new char[] { '/' }, 3)[2]);
+                    renderer.sharedMaterials = new Material[renderer.sharedMaterials.Length];
+                    Debug.LogFormat("Stripped materials from \"{0}\" at \"<root>/{1}\".", path, GetGameObjectPath(renderer.transform).Split(new char[] { '/' }, 3)[2]);
                 }
             }
         }
 
         Debug.LogFormat("[{0}] Done stripping materials.", DateTime.Now.ToLocalTime());
+    }
+
+
+
+    [MenuItem("PlateUp!/Preparation/Set Prefab Materials to Default")]
+    public static void SetAllPrefabMaterialsToDefault()
+    {
+        if (!EditorUtility.DisplayDialog("Confirm", "Changing the materials of prefabs is an irreversible process. Perform at your own risk.", "Proceed", "Cancel"))
+        {
+            return;
+        }
+
+        string[] assetGUIDs = AssetDatabase.FindAssets($"t:prefab,b:{BUNDLE_FILENAME}");
+        foreach (var assetGUID in assetGUIDs)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(assetGUID);
+            if (!IsIncludedAssetPath(path))
+            {
+                continue;
+            }
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            MeshRenderer[] renderers = prefab.GetComponentsInChildren<MeshRenderer>();
+            Material defaultMaterial = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Material.mat");
+
+            foreach (MeshRenderer renderer in renderers)
+            {
+                if (renderer.sharedMaterials.Length > 0)
+                {
+                    var newMaterials = new Material[renderer.sharedMaterials.Length];
+
+                    for (int i = 0; i < newMaterials.Length; i++)
+                    {
+                        newMaterials[i] = defaultMaterial;
+                    }
+
+                    renderer.sharedMaterials = newMaterials;
+
+                    Debug.LogFormat("Set materials from \"{0}\" at \"<root>/{1}\".", path, GetGameObjectPath(renderer.transform).Split(new char[] { '/' }, 3)[2]);
+                }
+            }
+        }
+
+        Debug.LogFormat("[{0}] Done setting materials.", DateTime.Now.ToLocalTime());
     }
 }
